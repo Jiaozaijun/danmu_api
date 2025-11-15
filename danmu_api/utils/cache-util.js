@@ -2,9 +2,7 @@ import { globals } from '../configs/globals.js';
 import { log } from './log-util.js'
 import { Anime } from "../models/dandan-model.js";
 import { simpleHash } from "./codec-util.js";
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+let fs, path;
 
 // =====================
 // cache数据结构处理函数
@@ -312,11 +310,12 @@ export function cleanupExpiredIPs(currentTime) {
 // 获取当前文件目录的兼容方式
 function getDirname() {
   if (typeof __dirname !== 'undefined') {
-    // CommonJS 环境 (Vercel 编译后)
+    // CommonJS 环境 (Vercel)
     return __dirname;
   }
-  // ES Module 环境
-  return path.dirname(fileURLToPath(import.meta.url));
+  // ES Module 环境 (本地)
+  // 假设 cache-util.js 在 danmu_api/utils/ 目录下
+  return path.join(process.cwd(), 'danmu_api', 'utils');
 }
 
 // 从本地缓存目录读取缓存数据
@@ -409,13 +408,23 @@ export async function updateLocalCaches() {
 }
 
 // 判断是否有效的本地缓存目录
-export function judgeLocalCacheValid(urlPath) {
-  if (!globals.localCacheValid && urlPath !== "/favicon.ico" && urlPath !== "/robots.txt") {
-    const cacheDirPath = path.join(getDirname(), '..', '..', '.cache');
+export async function judgeLocalCacheValid(urlPath, deployPlatform) {
+  if (deployPlatform === 'node') {
+    try {
+      fs = await import('fs');
+      path = await import('path');
 
-    if (fs.existsSync(cacheDirPath)) {
-      globals.localCacheValid = true;
-    } else {
+      if (!globals.localCacheValid && urlPath !== "/favicon.ico" && urlPath !== "/robots.txt") {
+        const cacheDirPath = path.join(getDirname(), '..', '..', '.cache');
+
+        if (fs.existsSync(cacheDirPath)) {
+          globals.localCacheValid = true;
+        } else {
+          globals.localCacheValid = false;
+        }
+      }
+    } catch (error) {
+      console.warn('Node.js modules not available:', error.message);
       globals.localCacheValid = false;
     }
   }
